@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: lxp-diagnosis
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    buildFilter:
+      paths:
+        - "**"
+    autoDeploy: true
