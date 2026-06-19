@@ -85,7 +85,7 @@ def parse_historical_data(filepath: str) -> dict:
     end_time = None
     columns = None
     
-    for sheet_name in xl.sheet_names:
+    for sheet_name in sorted(xl.sheet_names):
         df = xl.parse(sheet_name)
         if df.empty:
             continue
