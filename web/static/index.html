@@ -244,7 +244,23 @@ input[type=file]{display:none}
       <div class="card" v-if="activeTab==='violations'">
         <div class="card-title">⚡ 物理判据异常时间点（{{ result.violations.length }} 个）</div>
         <div v-if="!result.violations.length" class="empty">✅ 未发现物理判据违反，硬件状态正常。</div>
-        <div v-for="(v, i) in paginatedViolations" :key="i" class="result-item">
+        <!-- Pre-anomaly rows -->
+        <template v-if="result.violations.length && result.violations[0].pre_rows">
+          <div style="font-size:14px;color:var(--accent);margin-bottom:8px;margin-top:12px">📊 最早异常前运行数据：</div>
+          <div v-for="(pr, j) in result.violations[0].pre_rows" class="result-item" style="border-left:2px solid var(--border);padding-left:12px;opacity:0.8">
+            <div class="result-time" style="color:var(--text-dim)">🕐 {{ pr.time }} | {{ pr.status }}</div>
+            <div class="result-meta">
+              SOC: {{ pr.SOC }}% | BatCurrent: {{ pr.BatCurrent }}A |
+              pCharge: {{ pr.pCharge }}W | pDisCharge: {{ pr.pDisCharge }}W |
+              vpv1: {{ pr.vpv1 }}V | vpv2: {{ pr.vpv2 }}V | vpv3: {{ pr.vpv3 }}V |
+              ppv1: {{ pr.ppv1 }}W | ppv2: {{ pr.ppv2 }}W | ppv3: {{ pr.ppv3 }}W |
+              vacr: {{ pr.vacr }}V | fac: {{ pr.fac }}Hz |
+              pToGrid: {{ pr.pToGrid }}W | pToUser: {{ pr.pToUser }}W | pLoad: {{ pr.pLoad }}W |
+              vBusP: {{ pr.vBusP }}V | vBus1: {{ pr.vBus1 }}V | vBus2: {{ pr.vBus2 }}V
+            </div>
+          </div>
+        </template>
+        <div v-for="(v, i) in paginatedViolations" :key=\"i\" class=\"result-item\">
           <div class="result-time">
             <span :class="v.severity==='critical' ? 'tag tag-red' : 'tag tag-orange'">
               {{ v.severity==='critical' ? '🔴 严重' : '🟡 警告' }}

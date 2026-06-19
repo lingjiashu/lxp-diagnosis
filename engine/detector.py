@@ -328,6 +328,12 @@ def scan_fault_signatures(rows: list) -> list:
             prev_row = rows[i - 1] if i > 0 else None
             next_row = rows[i + 1] if i < len(rows) - 1 else None
             
+            # For the first violation, capture up to 3 rows before it
+            pre_rows = None
+            if len(violations_list) == 0:
+                pre_start = max(0, i - 3)
+                pre_rows = [_row_snapshot(r) for r in rows[pre_start:i]]
+            
             violations_list.append({
                 "index": i,
                 "time": str(time_val) if time_val else None,
@@ -337,6 +343,7 @@ def scan_fault_signatures(rows: list) -> list:
                 "internal_fault": internal_fault,
                 "violations": viols,
                 "violation_count": len(viols),
+                "pre_rows": pre_rows,
                 "metrics": {
                     "vBat": vBat,
                     "Vbat_Inv": Vbat_Inv,

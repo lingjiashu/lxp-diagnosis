@@ -87,45 +87,6 @@ def generate_report(
         lines.append(f"| 📊 总计异常时间点 | **{len(all_violations)}** |")
         lines.append(f"")
         
-        # ── 第一个异常点之前3笔数据 ──
-        if all_violations:
-            first_v = all_violations[0]
-            first_idx = first_v.get("index", 0)
-            all_rows = historical.get("rows", [])
-            pre_start = max(0, first_idx - 3)
-            pre_rows = all_rows[pre_start:first_idx]
-            
-            if pre_rows:
-                lines.append(f"### 📊 最早异常前3笔运行数据")
-                lines.append(f"")
-                lines.append(f"| 字段 | " + " | ".join([f"第-{len(pre_rows)-i}笔" for i in range(len(pre_rows))]) + " |")
-                lines.append(f"|" + "------|" * (len(pre_rows) + 1))
-                
-                def _snap(r):
-                    return {
-                        "time": str(r.get('_parsed_time') or r.get('Time', ''))[:19] if r.get('_parsed_time') or r.get('Time') else '?',
-                        "status": str(r.get('Status', '')),
-                        "vBat": r.get('vBat', ''), "Vbat_Inv": r.get('Vbat_Inv', ''),
-                        "vBus1": r.get('vBus1', ''), "vBus2": r.get('vBus2', ''), "vBusP": r.get('vBusP', ''),
-                        "SOC": r.get('SOC', ''), "BatCurrent": r.get('BatCurrent', ''),
-                        "pCharge": r.get('pCharge', ''), "pDisCharge": r.get('pDisCharge', ''),
-                        "vpv1": r.get('vpv1', ''), "vpv2": r.get('vpv2', ''),
-                    }
-                
-                snaps = [_snap(r) for r in pre_rows]
-                
-                for key, label in [("time", "时间"), ("status", "Status"),
-                                     ("vBat", "vBat(V)"), ("Vbat_Inv", "Vbat_Inv(V)"),
-                                     ("vBus1", "vBus1(V)"), ("vBus2", "vBus2(V)"), ("vBusP", "vBusP(V)"),
-                                     ("SOC", "SOC(%)"), ("BatCurrent", "BatCurrent(A)"),
-                                     ("pCharge", "pCharge(W)"), ("pDisCharge", "pDisCharge(W)"),
-                                     ("vpv1", "vpv1(V)"), ("vpv2", "vpv2(V)")]:
-                    vals = " | ".join([str(s.get(key, '')) for s in snaps])
-                    lines.append(f"| {label} | {vals} |")
-                lines.append(f"")
-                lines.append(f"---")
-                lines.append(f"")
-        
         # Detail for each violation
         for i, v in enumerate(all_violations):
             t = str(v["time"])[:19] if v["time"] else "?"
