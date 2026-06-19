@@ -550,17 +550,20 @@ createApp({
         const trimmed = firstLine.trim();
         if (trimmed.startsWith('|')) {
           if (!inTable) { html += '<table>'; inTable = true; }
-          // Skip separator row
-          const isSep = /^[\|\s\-:]+$/.test(trimmed.replace(/\|/g, '').trim());
-          if (isSep) continue;
-          html += '<tr>';
-          // Remove leading/trailing | and split
-          let cellStr = trimmed.replace(/^\|/, '').replace(/\|$/, '');
-          const cells = cellStr.split('|').map(c => c.trim());
-          for (const cell of cells) {
-            html += `<td>${cell}</td>`;
+          // Process ALL lines in this table block
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith('|')) continue;
+            const isSep = /^[\|\s\-:]+$/.test(t.replace(/\|/g, '').trim());
+            if (isSep) continue;
+            html += '<tr>';
+            let cellStr = t.replace(/^\|/, '').replace(/\|$/, '');
+            const cells = cellStr.split('|').map(c => c.trim());
+            for (const cell of cells) {
+              html += `<td>${cell}</td>`;
+            }
+            html += '</tr>';
           }
-          html += '</tr>';
           continue;
         } else if (inTable) {
           html += '</table>';
