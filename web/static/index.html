@@ -519,62 +519,61 @@ createApp({
       document.querySelectorAll('input[type=file]').forEach(el => el.value = '');
     }
 
-    // Simple markdown renderer (replaces marked.parse since CDN blocked)
+    // Simple markdown renderer
     function renderMarkdown(md) {
       if (!md) return '';
-      let html = md
-        // Escape HTML
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      // Split into blocks by double newline
+      const blocks = md.split('\n\n');
+      let html = '';
+      let inTable = false;
+      
+      for (const block of blocks) {
+        const lines = block.split('\n');
+        const firstLine = lines[0];
+        
         // Headers
-        .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-        // Bold and italic
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        // Inline code
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        // Horizontal rules
-        .replace(/^---$/gm, '<hr>')
-        // Blockquotes
-        .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-        // Unordered lists
-        .replace(/^- (.+)$/gm, '<li>$1</li>')
-        // Tables (simple: |...|...|)
-        .replace(/^\|(.+)\|$/gm, (line) => {
-          const cells = line.split('|').filter(c => c.trim()).map(c => c.trim());
-          if (cells.every(c => /^[-:]+$/.test(c))) return '<!-- separator -->';
-          const tag = line.match(/^\|[- :|]+\|$/) ? '' : 'td';
-          return '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
-        })
-        // Paragraphs: double newline
-        .replace(/\n\n/g, '</p><p>')
-        // Single newline to <br> within paragraphs
-        .replace(/\n/g, '<br>');
+        if (/^#### /.test(firstLine)) { html += `<h4>${firstLine.slice(5)}</h4>`; continue; }
+        if (/^### /.test(firstLine)) { html += `<h3>${firstLine.slice(4)}</h3>`; continue; }
+        if (/^## /.test(firstLine)) { html += `<h2>${firstLine.slice(3)}</h2>`; continue; }
+        if (/^# /.test(firstLine)) { html += `<h1>${firstLine.slice(2)}</h1>`; continue; }
+        
+        // Horizontal rule
+        if (firstLine === '---') { html += '<hr>'; continue; }
+        
+        // Blockquote
+        if (firstLine.startsWith('> ')) {
+          html += `<blockquote>${firstLine.slice(2)}</blockquote>`;
+          continue;
+        }
+        
+        // Table
+        if (firstLine.startsWith('|') && firstLine.endsWith('|')) {
+          if (!inTable) { html += '<table>'; inTable = true; }
+          const isSep = lines[0] && /^[\|\s\-:]+$/.test(lines[0].replace(/\|/g,'').trim());
+          if (isSep) continue;
+          html += '<tr>';
+          const cells = firstLine.split('|').filter(c => c.trim()).map(c => c.trim());
+          for (const cell of cells) {
+            html += `<td>${cell}</td>`;
+          }
+          html += '</tr>';
+          continue;
+        } else if (inTable) {
+          html += '</table>';
+          inTable = false;
+        }
+        
+        // Inline formatting within the block
+        let content = block
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\n/g, '<br>');
+        
+        html += `<p>${content}</p>`;
+      }
       
-      // Wrap in paragraphs and tables
-      html = '<p>' + html + '</p>';
-      // Fix table wrapping
-      html = html.replace(/<p><tr>/g, '<table><tr>');
-      html = html.replace(/<\/tr><\/p>/g, '</tr></table>');
-      html = html.replace(/<\/tr><p><tr>/g, '</tr><tr>');
-      // Clean up separator rows
-      html = html.replace(/<!-- separator -->/g, '');
-      // Fix empty table rows
-      html = html.replace(/<tr><\/tr>/g, '');
-      // Fix blocks
-      html = html.replace(/<p><h([1-4])>/g, '<h$1>');
-      html = html.replace(/<\/h([1-4])><\/p>/g, '</h$1>');
-      html = html.replace(/<p><hr><\/p>/g, '<hr>');
-      html = html.replace(/<p><blockquote>/g, '<blockquote>');
-      html = html.replace(/<\/blockquote><\/p>/g, '</blockquote>');
-      html = html.replace(/<p><li>/g, '<ul><li>');
-      html = html.replace(/<\/li><\/p>/g, '</li></ul>');
-      html = html.replace(/<\/li><p><li>/g, '</li><li>');
-      html = html.replace(/<p><table>/g, '<table>');
-      html = html.replace(/<\/table><\/p>/g, '</table>');
-      
+      if (inTable) html += '</table>';
       return html;
     }
 
