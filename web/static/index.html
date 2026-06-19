@@ -260,7 +260,7 @@ input[type=file]{display:none}
             </div>
           </div>
         </template>
-        <div v-for="(v, i) in paginatedViolations" :key=\"i\" class=\"result-item\">
+        <div v-for="(v, i) in paginatedViolations" :key="i" class="result-item">
           <div class="result-time">
             <span :class="v.severity==='critical' ? 'tag tag-red' : 'tag tag-orange'">
               {{ v.severity==='critical' ? '🔴 严重' : '🟡 警告' }}
