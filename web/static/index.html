@@ -547,12 +547,16 @@ createApp({
         }
         
         // Table
-        if (firstLine.startsWith('|') && firstLine.endsWith('|')) {
+        const trimmed = firstLine.trim();
+        if (trimmed.startsWith('|')) {
           if (!inTable) { html += '<table>'; inTable = true; }
-          const isSep = lines[0] && /^[\|\s\-:]+$/.test(lines[0].replace(/\|/g,'').trim());
+          // Skip separator row
+          const isSep = /^[\|\s\-:]+$/.test(trimmed.replace(/\|/g, '').trim());
           if (isSep) continue;
           html += '<tr>';
-          const cells = firstLine.split('|').filter(c => c.trim()).map(c => c.trim());
+          // Remove leading/trailing | and split
+          let cellStr = trimmed.replace(/^\|/, '').replace(/\|$/, '');
+          const cells = cellStr.split('|').map(c => c.trim());
           for (const cell of cells) {
             html += `<td>${cell}</td>`;
           }
