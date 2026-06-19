@@ -102,6 +102,8 @@ async def diagnose(
         all_violations = result.pop("all_violations", [])
         fault_transitions = result.pop("fault_transitions", [])
         correlated = result.pop("correlated", [])
+        event_timeline = result.pop("event_timeline", [])
+        field_changes = result.pop("field_changes", {})
         
         # Summary stats
         critical_count = sum(1 for v in all_violations if v["severity"] == "critical")
@@ -126,6 +128,8 @@ async def diagnose(
             "violations": all_violations,
             "transitions": fault_transitions,
             "correlated": correlated,
+            "event_timeline": event_timeline,
+            "field_changes": field_changes,
             "report": report,
         })
     

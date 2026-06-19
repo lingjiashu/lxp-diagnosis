@@ -235,6 +235,8 @@ input[type=file]{display:none}
       <!-- Tabs -->
       <div class="tabs">
         <div class="tab" :class="{active: activeTab==='violations'}" @click="activeTab='violations'">⚡ 异常时间点</div>
+        <div class="tab" :class="{active: activeTab==='timeline'}" @click="activeTab='timeline'">📅 事件时间线</div>
+        <div class="tab" :class="{active: activeTab==='field_changes'}" @click="activeTab='field_changes'">🔧 字段变化</div>
         <div class="tab" :class="{active: activeTab==='transitions'}" @click="activeTab='transitions'" v-if="correlated.length">🔄 故障关联</div>
         <div class="tab" :class="{active: activeTab==='events'}" @click="activeTab='events'" v-if="result.summary.events">📋 事件记录</div>
         <div class="tab" :class="{active: activeTab==='report'}" @click="activeTab='report'">📄 诊断报告</div>
@@ -374,6 +376,64 @@ input[type=file]{display:none}
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline Tab -->
+      <div class="card" v-if="activeTab==='timeline'">
+        <div class="card-title">📅 事件时间线（{{ result.event_timeline?.length || 0 }} 个事件）</div>
+        <div v-if="!result.event_timeline?.length" class="empty">无事件记录</div>
+        <div v-for="(evt, i) in (result.event_timeline || [])" :key="i" class="event-row" :class="evt.type.includes('fault') ? 'fault' : evt.type.includes('warning') ? 'notice' : ''">
+          <span style="min-width:160px;font-family:monospace;font-size:12px;color:var(--accent)">{{ evt.time }}</span>
+          <span :class="evt.type==='status_change' ? 'tag' : evt.type.includes('fault') ? 'tag tag-red' : 'tag tag-orange'">{{ evt.type }}</span>
+          <span style="flex:1;font-size:13px">{{ evt.detail }}</span>
+        </div>
+      </div>
+
+      <!-- Field Changes Tab -->
+      <div class="card" v-if="activeTab==='field_changes'">
+        <div class="card-title">🔧 诊断字段变化</div>
+        
+        <!-- batStatusInv -->
+        <div style="margin-bottom:20px">
+          <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:10px">🔋 逆变器电池状态 (batStatusInv)</div>
+          <div v-if="!(result.field_changes?.batStatusInv?.length)" class="empty">无变化</div>
+          <div v-for="(chg, i) in (result.field_changes?.batStatusInv || [])" :key="'bat'+i" style="padding:10px 14px;margin-bottom:6px;background:#ffffff06;border-radius:8px;border-left:2px solid var(--accent)">
+            <div style="font-size:12px;color:var(--accent);font-family:monospace;margin-bottom:4px">{{ chg.time }}</div>
+            <div style="font-size:12px;color:var(--text-dim)">
+              <span style="font-family:monospace">{{ chg.prev_hex }}</span> → <span style="font-family:monospace;color:#fff">{{ chg.curr_hex }}</span>
+              <span style="margin-left:8px;font-size:11px;color:#ffffff80">{{ chg.curr_binary }}</span>
+            </div>
+            <div style="font-size:12px;margin-top:2px">
+              <span style="color:#ffffff80">变化: </span>
+              <span v-for="b in chg.changed_bits" style="margin-right:8px">
+                {{ b.name }} {{ b.from }}→<strong :style="b.to?'color:var(--red)':'color:var(--green)'">{{ b.to }}</strong>
+              </span>
+              <span v-if="!chg.changed_bits.length" style="color:var(--text-dim)">仅值变化，bit位相同</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-dim);margin-top:2px">解析: {{ chg.curr_summary }}</div>
+          </div>
+        </div>
+
+        <!-- internalFault -->
+        <div>
+          <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:10px">⚠️ 内部异常 (internalFault)</div>
+          <div v-if="!(result.field_changes?.internalFault?.length)" class="empty">无变化</div>
+          <div v-for="(chg, i) in (result.field_changes?.internalFault || [])" :key="'if'+i" style="padding:10px 14px;margin-bottom:6px;background:#ffffff06;border-radius:8px;border-left:2px solid var(--orange)">
+            <div style="font-size:12px;color:var(--accent);font-family:monospace;margin-bottom:4px">{{ chg.time }}</div>
+            <div style="font-size:12px;color:var(--text-dim)">
+              <span style="font-family:monospace">{{ chg.prev_hex }}</span> → <span style="font-family:monospace;color:#fff">{{ chg.curr_hex }}</span>
+              <span style="margin-left:8px;font-size:11px;color:#ffffff80">{{ chg.curr_binary }}</span>
+            </div>
+            <div style="font-size:12px;margin-top:2px">
+              <span style="color:#ffffff80">变化: </span>
+              <span v-for="b in chg.changed_bits" style="margin-right:8px">
+                {{ b.name }} {{ b.from }}→<strong :style="b.to?'color:var(--red)':'color:var(--green)'">{{ b.to }}</strong>
+              </span>
+              <span v-if="!chg.changed_bits.length" style="color:var(--text-dim)">仅值变化，bit位相同</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-dim);margin-top:2px">解析: {{ chg.curr_summary }}</div>
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ from .parser import parse_historical_data, parse_event_records, parse_set_record
 from .detector import scan_fault_signatures, find_fault_code_transitions
 from .correlator import full_correlation
 from .report import generate_report
+from .timeline import extract_event_timeline, extract_field_changes
 from typing import Optional
 
 
@@ -14,25 +15,6 @@ def run_diagnosis(
     event_path: Optional[str] = None,
     set_path: Optional[str] = None,
 ) -> dict:
-    """
-    运行完整诊断流程。
-    
-    参数:
-        historical_path: 历史运行数据 Excel 路径
-        event_path: 事件记录 Excel 路径（可选）
-        set_path: 操作设置记录 Excel 路径（可选）
-    
-    返回:
-        {
-            "historical": {...},     # 解析后的历史数据摘要
-            "event_records": {...},  # 事件记录（如有）
-            "set_records": {...},    # 设置记录（如有）
-            "all_violations": [...], # 所有物理判据违反
-            "fault_transitions": [...],  # Fault code 突变
-            "correlated": [...],     # 关联后的完整结果
-            "report": "markdown...", # 报告文本
-        }
-    """
     # Step 1: Parse
     historical = parse_historical_data(historical_path)
     
@@ -46,6 +28,11 @@ def run_diagnosis(
     
     # Step 2: Scan for physical law violations
     all_violations = scan_fault_signatures(historical["rows"])
+    
+    # Step 2b: Event timeline and field changes
+    event_timeline = extract_event_timeline(historical["rows"])
+    bat_status_changes = extract_field_changes(historical["rows"], "batStatusInv")
+    internal_fault_changes = extract_field_changes(historical["rows"], "internalFault")
     
     # Step 3: Find fault code transitions
     fault_transitions = find_fault_code_transitions(historical["rows"])
@@ -109,4 +96,9 @@ def run_diagnosis(
         ],
         "correlated": correlated,
         "report": report,
+        "event_timeline": event_timeline,
+        "field_changes": {
+            "batStatusInv": bat_status_changes,
+            "internalFault": internal_fault_changes,
+        },
     }
