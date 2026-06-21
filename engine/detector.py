@@ -1,10 +1,13 @@
 """
 强故障特征检测器
 
-三条物理定律 (硬件故障判据):
+六条物理判据 (硬件故障判据):
 1. vBat ≈ Vbat_Inv   (误差 ≤ 1V)
-2. vBUS2 ≈ vBat × 6  (误差 ≤ 10V)
+2. vBUS2 ≈ vBat × 6  (误差 ≤ 20V, Standby跳过, PV Charge下vBus2<240V异常)
 3. vBusP × 2 ≈ vBus1 (误差 ≤ 6V)
+4. Status含fault → 直接触发
+5. 活跃状态下vBat骤降 → DCDC短路/电池跳闸
+6. InternalFault位解析
 
 违反任一条 = 硬件异常时间点
 """
@@ -60,7 +63,7 @@ def _lookup_str(row: dict, *keys: str) -> str:
     return ''
 
 
-# ─── 三条强故障判据 ───
+# ─── 六条强故障判据 ───
 
 def check_vbat_consistency(vBat: Optional[float], Vbat_Inv: Optional[float]) -> dict:
     """
@@ -149,6 +152,61 @@ def check_bus_under_voltage(status: str, vBat: Optional[float], Vbat_Inv: Option
         "passed": passed,
         "error": round(threshold - vBUS2, 2) if not passed else 0,
         "detail": f"状态={status}，电池={bat_voltage:.1f}V，vBUS2={vBUS2:.1f}V，阈值={threshold:.1f}V {'✓' if passed else '✗ 异常低'}"
+    }
+
+
+def check_pv_charge_bus2(status: str, vBUS2: Optional[float]) -> dict:
+    """
+    判据2扩展: PV Charge 状态下 vBUS2 应 > 240V
+    """
+    if not status:
+        return {"passed": None, "error": None, "detail": "状态未知"}
+    
+    status_lower = str(status).lower()
+    if 'pv' not in status_lower or 'charge' not in status_lower:
+        return {"passed": None, "error": None, "detail": "非PV Charge状态，跳过"}
+    
+    if vBUS2 is None:
+        return {"passed": False, "error": None, "detail": "PV Charge状态下vBUS2数据缺失"}
+    
+    threshold = 240
+    passed = vBUS2 >= threshold
+    
+    return {
+        "passed": passed,
+        "error": round(threshold - vBUS2, 2) if not passed else 0,
+        "detail": f"PV Charge状态下，vBUS2={vBUS2:.1f}V，阈值={threshold}V {'✓' if passed else '✗ 异常低（充电拓扑未建立）'}"
+    }
+
+
+def check_battery_sudden_drop(rows: list, i: int) -> dict:
+    """
+    判据5: 活跃状态下 vBat 骤降检测
+    当前行 vBat < 1V 且前一行 vBat > 10V 且前一行为活跃状态(charge/discharge)
+    """
+    if i == 0:
+        return {"passed": None, "error": None, "detail": "首行，无法检测骤降"}
+    
+    curr_vBat = _lookup(rows[i], 'vBat', 'vbat')
+    prev_vBat = _lookup(rows[i-1], 'vBat', 'vbat')
+    prev_status = _lookup_str(rows[i-1], 'Status', 'status')
+    
+    if curr_vBat is None or prev_vBat is None:
+        return {"passed": None, "error": None, "detail": "电池电压数据缺失"}
+    
+    if curr_vBat > 1 or prev_vBat < 10:
+        return {"passed": True, "error": 0, "detail": "无骤降"}
+    
+    prev_status_lower = str(prev_status).lower() if prev_status else ''
+    has_active = any(kw in prev_status_lower for kw in ['charge', 'discharge'])
+    
+    if not has_active:
+        return {"passed": None, "error": None, "detail": f"前一行为{prev_status}，非活跃状态，跳过"}
+    
+    return {
+        "passed": False,
+        "error": round(prev_vBat, 2),
+        "detail": f"vBat从{prev_vBat:.1f}V骤降至{curr_vBat:.1f}V（前状态: {prev_status}）→ DCDC短路/电池开关跳闸"
     }
 
 
@@ -264,9 +322,10 @@ def scan_fault_signatures(rows: list) -> list:
         # 四条触发条件
         r1 = check_vbat_consistency(vBat, Vbat_Inv)
         
-        # 规则2: Standby 状态下不判断
+        # 规则2: Standby 状态下不判断；PV Gridon 状态下跳过
         is_standby = 'standby' in status_lower
-        r2 = check_vbus_ratio(vBat, vBUS2) if not is_standby else {"passed": None, "error": None, "detail": "Standby状态，跳过"}
+        is_pv_gridon = 'pv' in status_lower and 'grid' in status_lower and 'on' in status_lower
+        r2 = check_vbus_ratio(vBat, vBUS2) if not (is_standby or is_pv_gridon) else {"passed": None, "error": None, "detail": f"{'Standby' if is_standby else 'PV Gridon'}状态，跳过"}
         
         r3 = check_vbus_half_ratio(vBusP, vBus1)
         
@@ -274,12 +333,20 @@ def scan_fault_signatures(rows: list) -> list:
         is_fault_status = 'fault' in status_lower
         r4 = check_bus_under_voltage(status, vBat, Vbat_Inv, vBUS2)
         
+        # 规则2扩展: PV Charge 下 vBUS2 < 240V 异常
+        r2b = check_pv_charge_bus2(status, vBUS2)
+        
+        # 规则5: 活跃状态下电池电压骤降
+        r5 = check_battery_sudden_drop(rows, i)
+        
         # Gather violations
         viols = []
         for rule_name, result in [("vBat一致性 (vBat≈Vbat_Inv, ≤1V)", r1),
                                    ("vBUS2比例 (vBUS2≈vBat×6, ≤20V)", r2),
                                    ("vBusP半压 (vBusP×2≈vBus1, ≤6V)", r3),
-                                   ("充放电状态下BUS2异常低 (vBUS2 < vBat×6-200V)", r4)]:
+                                   ("充放电状态下BUS2异常低 (vBUS2 < vBat×6-200V)", r4),
+                                   ("PV Charge下vBUS2异常低 (vBUS2 < 240V)", r2b),
+                                   ("电池电压骤降 (vBat活跃态→0V)", r5)]:
             if result["passed"] is False:
                 inference = ""
                 if "vBat一致性" in rule_name:
@@ -294,6 +361,10 @@ def scan_fault_signatures(rows: list) -> list:
                     inference = "主板逆变侧或者BUS平衡回路出现半BUS短路，同时也会引起vBus2异常"
                 elif "BUS2异常低" in rule_name:
                     inference = "LLC未正常启动（Fault状态下LLC不启动属正常，需结合其他判据判断）"
+                elif "PV Charge下vBUS2" in rule_name:
+                    inference = "PV充电拓扑未正常建立（vBus2应>240V），DCDC板或HV板故障"
+                elif "电池电压骤降" in rule_name:
+                    inference = "DCDC突发短路→电池开关跳闸，需检测DCDC功率级"
                 
                 viols.append({
                     "rule": rule_name,
@@ -354,6 +425,8 @@ def scan_fault_signatures(rows: list) -> list:
                     "BatCurrent": _lookup(row, 'BatCurrent', 'batcurrent'),
                     "pCharge": _lookup(row, 'pCharge', 'pcharge'),
                     "pDisCharge": _lookup(row, 'pDisCharge', 'pdischarge'),
+                    "pinv": _lookup(row, 'pinv'),
+                    "prec": _lookup(row, 'prec'),
                     "vpv1": _lookup(row, 'vpv1'),
                     "vpv2": _lookup(row, 'vpv2'),
                     "vpv3": _lookup(row, 'vpv3'),
@@ -390,6 +463,10 @@ def _row_snapshot(row: dict) -> dict:
         "BatCurrent": _lookup(row, 'BatCurrent', 'batcurrent'),
         "pCharge": _lookup(row, 'pCharge', 'pcharge'),
         "pDisCharge": _lookup(row, 'pDisCharge', 'pdischarge'),
+        "pinv": _lookup(row, 'pinv'),
+        "prec": _lookup(row, 'prec'),
+        "vBat": _lookup(row, 'vBat', 'vbat'),
+        "Vbat_Inv": _lookup(row, 'Vbat_Inv', 'vbat_inv'),
         "vpv1": _lookup(row, 'vpv1'),
         "vpv2": _lookup(row, 'vpv2'),
         "vpv3": _lookup(row, 'vpv3'),
