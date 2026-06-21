@@ -155,19 +155,24 @@ def check_bus_under_voltage(status: str, vBat: Optional[float], Vbat_Inv: Option
     }
 
 
-def check_pv_charge_bus2(status: str, vBUS2: Optional[float]) -> dict:
+def check_charge_bus2(status: str, vBUS2: Optional[float]) -> dict:
     """
-    判据2扩展: PV Charge 状态下 vBUS2 应 > 240V
+    判据2扩展: PV Charge / AC Charge 状态下 vBUS2 应 > 240V
     """
     if not status:
         return {"passed": None, "error": None, "detail": "状态未知"}
     
     status_lower = str(status).lower()
-    if 'pv' not in status_lower or 'charge' not in status_lower:
-        return {"passed": None, "error": None, "detail": "非PV Charge状态，跳过"}
+    # Match both 'PV Charge' and 'AC Charge'
+    is_charge = 'charge' in status_lower and ('pv' in status_lower or 'ac' in status_lower)
+    if not is_charge:
+        return {"passed": None, "error": None, "detail": "非Charge状态，跳过"}
+    
+    # Determine state label
+    state_label = "PV Charge" if 'pv' in status_lower else "AC Charge"
     
     if vBUS2 is None:
-        return {"passed": False, "error": None, "detail": "PV Charge状态下vBUS2数据缺失"}
+        return {"passed": False, "error": None, "detail": f"{state_label}状态下vBUS2数据缺失"}
     
     threshold = 240
     passed = vBUS2 >= threshold
@@ -175,7 +180,7 @@ def check_pv_charge_bus2(status: str, vBUS2: Optional[float]) -> dict:
     return {
         "passed": passed,
         "error": round(threshold - vBUS2, 2) if not passed else 0,
-        "detail": f"PV Charge状态下，vBUS2={vBUS2:.1f}V，阈值={threshold}V {'✓' if passed else '✗ 异常低（充电拓扑未建立）'}"
+        "detail": f"{state_label}状态下，vBUS2={vBUS2:.1f}V，阈值={threshold}V {'✓' if passed else '✗ 异常低（充电拓扑未建立）'}"
     }
 
 
@@ -334,7 +339,7 @@ def scan_fault_signatures(rows: list) -> list:
         r4 = check_bus_under_voltage(status, vBat, Vbat_Inv, vBUS2)
         
         # 规则2扩展: PV Charge 下 vBUS2 < 240V 异常
-        r2b = check_pv_charge_bus2(status, vBUS2)
+        r2b = check_charge_bus2(status, vBUS2)
         
         # 规则5: 活跃状态下电池电压骤降
         r5 = check_battery_sudden_drop(rows, i)
@@ -345,7 +350,7 @@ def scan_fault_signatures(rows: list) -> list:
                                    ("vBUS2比例 (vBUS2≈vBat×6, ≤20V)", r2),
                                    ("vBusP半压 (vBusP×2≈vBus1, ≤6V)", r3),
                                    ("充放电状态下BUS2异常低 (vBUS2 < vBat×6-200V)", r4),
-                                   ("PV Charge下vBUS2异常低 (vBUS2 < 240V)", r2b),
+                                   ("Charge下vBUS2异常低 (vBUS2 < 240V)", r2b),
                                    ("电池电压骤降 (vBat活跃态→0V)", r5)]:
             if result["passed"] is False:
                 inference = ""
@@ -361,8 +366,8 @@ def scan_fault_signatures(rows: list) -> list:
                     inference = "主板逆变侧或者BUS平衡回路出现半BUS短路，同时也会引起vBus2异常"
                 elif "BUS2异常低" in rule_name:
                     inference = "LLC未正常启动（Fault状态下LLC不启动属正常，需结合其他判据判断）"
-                elif "PV Charge下vBUS2" in rule_name:
-                    inference = "PV充电拓扑未正常建立（vBus2应>240V），DCDC板或HV板故障"
+                elif "Charge下vBUS2" in rule_name:
+                    inference = "充电拓扑未正常建立（vBus2应>240V），DCDC板或HV板故障"
                 elif "电池电压骤降" in rule_name:
                     inference = "DCDC突发短路→电池开关跳闸，需检测DCDC功率级"
                 

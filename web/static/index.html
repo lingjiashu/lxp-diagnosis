@@ -254,6 +254,8 @@ input[type=file]{display:none}
             <div class="result-meta">
               SOC: {{ pr.SOC }}% | BatCurrent: {{ pr.BatCurrent }}A |
               pCharge: {{ pr.pCharge }}W | pDisCharge: {{ pr.pDisCharge }}W |
+              pinv: {{ pr.pinv }}W | prec: {{ pr.prec }}W |
+              vBat: {{ pr.vBat }}V | Vbat_Inv: {{ pr.Vbat_Inv }}V |
               vpv1: {{ pr.vpv1 }}V | vpv2: {{ pr.vpv2 }}V | vpv3: {{ pr.vpv3 }}V |
               ppv1: {{ pr.ppv1 }}W | ppv2: {{ pr.ppv2 }}W | ppv3: {{ pr.ppv3 }}W |
               vacr: {{ pr.vacr }}V | fac: {{ pr.fac }}Hz |
@@ -282,6 +284,10 @@ input[type=file]{display:none}
             BatCurrent: {{ v.metrics.BatCurrent }}A |
             pCharge: {{ v.metrics.pCharge }}W |
             pDisCharge: {{ v.metrics.pDisCharge }}W |
+            pinv: {{ v.metrics.pinv }}W |
+            prec: {{ v.metrics.prec }}W |
+            vBat: {{ v.metrics.vBat }}V |
+            Vbat_Inv: {{ v.metrics.Vbat_Inv }}V |
             vpv1: {{ v.metrics.vpv1 }}V |
             vpv2: {{ v.metrics.vpv2 }}V |
             vpv3: {{ v.metrics.vpv3 }}V |
