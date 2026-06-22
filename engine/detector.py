@@ -2,7 +2,7 @@
 强故障特征检测器
 
 六条物理判据 (硬件故障判据):
-1. vBat ≈ Vbat_Inv   (误差 ≤ 1V)
+1. vBat ≈ Vbat_Inv   (误差 ≤ 3V)
 2. vBUS2 ≈ vBat × 6  (误差 ≤ 20V, Standby跳过, PV Charge下vBus2<240V异常)
 3. vBusP × 2 ≈ vBus1 (误差 ≤ 6V)
 4. Status含fault → 直接触发
@@ -67,13 +67,13 @@ def _lookup_str(row: dict, *keys: str) -> str:
 
 def check_vbat_consistency(vBat: Optional[float], Vbat_Inv: Optional[float]) -> dict:
     """
-    判据1: vBat ≈ Vbat_Inv, 误差 ≤ 1V
+    判据1: vBat ≈ Vbat_Inv, 误差 ≤ 3V
     """
     if vBat is None or Vbat_Inv is None:
         return {"passed": None, "error": None, "detail": "数据缺失"}
     
     error = abs(vBat - Vbat_Inv)
-    passed = error <= 1.0
+    passed = error <= 3.0
     
     return {
         "passed": passed,
@@ -346,7 +346,7 @@ def scan_fault_signatures(rows: list) -> list:
         
         # Gather violations
         viols = []
-        for rule_name, result in [("vBat一致性 (vBat≈Vbat_Inv, ≤1V)", r1),
+        for rule_name, result in [("vBat一致性 (vBat≈Vbat_Inv, ≤3V)", r1),
                                    ("vBUS2比例 (vBUS2≈vBat×6, ≤20V)", r2),
                                    ("vBusP半压 (vBusP×2≈vBus1, ≤6V)", r3),
                                    ("充放电状态下BUS2异常低 (vBUS2 < vBat×6-200V)", r4),
