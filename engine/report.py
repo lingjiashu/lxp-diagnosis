@@ -68,7 +68,7 @@ def generate_report(
     lines.append(f"")
     lines.append(f"扫描规则：")
     lines.append(f"1. **vBat ≈ Vbat_Inv**（误差 ≤ 1V）")
-    lines.append(f"2. **vBUS2 ≈ vBat × 6**（误差 ≤ 20V，Standby 状态下跳过）")
+    lines.append(f"2. **vBUS2 ≈ Vbat_Inv × 6**（误差 ≤ 20V，Standby 状态下跳过）")
     lines.append(f"3. **vBusP × 2 ≈ vBus1**（误差 ≤ 6V）")
     lines.append(f"4. **Fault 状态直接触发**（Status 包含 fault 关键字即触发分析）")
     lines.append(f"")
@@ -307,7 +307,7 @@ def generate_report(
     if not all_violations:
         lines.append(f"✅ **数据范围内未发现硬件物理判据异常。**")
         lines.append(f"")
-        lines.append(f"逆变器电压关系（vBat→Vbat_Inv, vBUS2/vBat, vBusP/vBus1）均符合预期。")
+        lines.append(f"逆变器电压关系（vBat→Vbat_Inv, vBUS2/Vbat_Inv, vBusP/vBus1）均符合预期。")
     else:
         critical = [v for v in all_violations if v["severity"] == "critical"]
         
@@ -338,7 +338,7 @@ def generate_report(
         if rule_counts.get("vBat一致性", 0) > 0:
             lines.append(f"- ⚠️ **vBat/Vbat_Inv 不一致**: 检查电池电压采样电路、ADC 校准、采样电阻分压网络。可能是 BMS 通讯异常或采样板故障。")
         if rule_counts.get("vBUS2比例", 0) > 0:
-            lines.append(f"- ⚠️ **vBUS2/vBat 比例异常**: 检查 BUS 电容、DC-DC 变换器、BUS 电压采样电路。可能是 BUS 电容老化或 LLC 谐振参数偏移。")
+            lines.append(f"- ⚠️ **vBUS2/Vbat_Inv 比例异常**: 检查 BUS 电容、DC-DC 变换器、BUS 电压采样电路。可能是 BUS 电容老化或 LLC 谐振参数偏移。")
         if rule_counts.get("vBusP半压", 0) > 0:
             lines.append(f"- ⚠️ **vBusP/vBus1 半压关系异常**: 检查 BUS 中点电压平衡、上下桥臂驱动对称性、母线电容均压电阻。")
         if rule_counts.get("充放电状态下BUS2异常低", 0) > 0:
@@ -354,7 +354,7 @@ def generate_report(
     lines.append(f"vBat 是电池端电压（由 BMS 上报），Vbat_Inv 是逆变器侧采集的电池电压。")
     lines.append(f"两者应基本一致。差异 >1V 说明采样偏差或线损异常。")
     lines.append(f"")
-    lines.append(f"### 判据 2: vBUS2 ≈ vBat × 6（≤20V）")
+    lines.append(f"### 判据 2: vBUS2 ≈ Vbat_Inv × 6（≤20V）")
     lines.append(f"LLC 谐振变换器将电池电压升压到 BUS 电压，升压比 ≈ 6:1。")
     lines.append(f"偏差 >20V 说明 BUS 电压异常或变压器匝比偏移。")
     lines.append(f"")
@@ -364,7 +364,7 @@ def generate_report(
     lines.append(f"")
     lines.append(f"### 判据 4: 充放电状态下 BUS2 异常低")
     lines.append(f"当逆变器处于 charge/discharge/fault 状态且电池电压 >40V 时，")
-    lines.append(f"vBUS2 应不低于 vBat × 6 - 200V。若 vBUS2 极低，说明 LLC 未正常启动或 BUS 电容失效。")
+    lines.append(f"vBUS2 应不低于 Vbat_Inv × 6 - 200V。若 vBUS2 极低，说明 LLC 未正常启动或 BUS 电容失效。")
     lines.append(f"")
 
     return "\n".join(lines)

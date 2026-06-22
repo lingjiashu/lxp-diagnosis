@@ -82,24 +82,24 @@ def check_vbat_consistency(vBat: Optional[float], Vbat_Inv: Optional[float]) -> 
     }
 
 
-def check_vbus_ratio(vBat: Optional[float], vBUS2: Optional[float]) -> dict:
+def check_vbus_ratio(Vbat_Inv: Optional[float], vBUS2: Optional[float]) -> dict:
     """
-    判据2: vBUS2 ≈ vBat × 6, 误差 ≤ 20V
+    判据2: vBUS2 ≈ Vbat_Inv × 6, 误差 ≤ 20V
     """
-    if vBat is None or vBUS2 is None:
+    if Vbat_Inv is None or vBUS2 is None:
         return {"passed": None, "error": None, "detail": "数据缺失"}
     
-    if vBat == 0:
-        return {"passed": None, "error": None, "detail": "vBat=0, 无法计算"}
+    if Vbat_Inv == 0:
+        return {"passed": None, "error": None, "detail": "Vbat_Inv=0, 无法计算"}
     
-    expected = vBat * 6
+    expected = Vbat_Inv * 6
     error = abs(vBUS2 - expected)
     passed = error <= 20.0
     
     return {
         "passed": passed,
         "error": round(error, 2),
-        "detail": f"vBUS2={vBUS2:.1f}V, vBat×6={expected:.1f}V, 误差={error:.2f}V {'✓' if passed else '✗ 超标'}"
+        "detail": f"vBUS2={vBUS2:.1f}V, Vbat_Inv×6={expected:.1f}V, 误差={error:.2f}V {'✓' if passed else '✗ 超标'}"
     }
 
 
@@ -330,7 +330,7 @@ def scan_fault_signatures(rows: list) -> list:
         # 规则2: Standby 状态下不判断；PV Gridon 状态下跳过
         is_standby = 'standby' in status_lower
         is_pv_gridon = 'pv' in status_lower and 'grid' in status_lower and 'on' in status_lower
-        r2 = check_vbus_ratio(vBat, vBUS2) if not (is_standby or is_pv_gridon) else {"passed": None, "error": None, "detail": f"{'Standby' if is_standby else 'PV Gridon'}状态，跳过"}
+        r2 = check_vbus_ratio(Vbat_Inv, vBUS2) if not (is_standby or is_pv_gridon) else {"passed": None, "error": None, "detail": f"{'Standby' if is_standby else 'PV Gridon'}状态，跳过"}
         
         r3 = check_vbus_half_ratio(vBusP, vBus1)
         
