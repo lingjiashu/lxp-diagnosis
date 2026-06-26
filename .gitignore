@@ -1,2 +1,4 @@
 __pycache__
 uploads/
+web/static/batch_cache.json
+web/static/batch_result.json

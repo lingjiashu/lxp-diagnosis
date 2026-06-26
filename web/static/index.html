@@ -57,6 +57,74 @@ a{color:var(--accent);text-decoration:none}
 .upload-desc{color:var(--text-dim);font-size:12px}
 .upload-file-name{color:var(--green);font-size:12px;margin-top:4px}
 input[type=file]{display:none}
+/* Mode switch */
+.mode-switch{display:flex;gap:4px;margin-bottom:16px;background:var(--bg-hover);border-radius:10px;padding:4px}
+.mode-btn{
+  flex:1;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;
+  text-align:center;cursor:pointer;transition:all .2s;
+  background:transparent;color:var(--text-dim);border:none;
+}
+.mode-btn.active{background:var(--accent-dim);color:#fff}
+.mode-btn:hover:not(.active){color:#fff}
+/* Batch */
+.batch-input-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.batch-input{
+  flex:1;min-width:280px;padding:10px 14px;
+  background:#11141d;border:1px solid var(--border);border-radius:10px;
+  color:var(--text);font-size:13px;font-family:monospace;outline:none
+}
+.batch-input:focus{border-color:var(--accent)}
+.batch-divider{
+  display:flex;align-items:center;gap:10px;margin:14px 0;
+  color:var(--text-dim);font-size:12px;
+}
+.batch-divider::before,.batch-divider::after{
+  content:'';flex:1;height:1px;background:var(--border);
+}
+/* Progress */
+.batch-progress{
+  margin-top:14px;padding:12px 16px;
+  background:#ffffff06;border-radius:10px;border:1px solid var(--border);
+}
+.progress-bar-bg{
+  width:100%;height:6px;background:var(--bg-hover);border-radius:3px;
+  margin:8px 0;overflow:hidden;
+}
+.progress-bar-fill{
+  height:100%;background:var(--accent);border-radius:3px;
+  transition:width .3s;
+}
+.batch-file-row{
+  display:flex;align-items:center;gap:10px;padding:6px 0;
+  font-size:12px;border-bottom:1px solid rgba(255,255,255,.04);
+}
+.batch-file-name{flex:1;font-family:monospace;color:var(--text)}
+.batch-file-status{min-width:60px;text-align:right}
+.batch-file-status.done{color:var(--green)}
+.batch-file-status.running{color:var(--accent)}
+.batch-file-status.error{color:var(--red)}
+.batch-file-status.pending{color:var(--text-dim)}
+/* Batch results list */
+.batch-result-item{
+  border:1px solid var(--border);border-radius:10px;
+  margin-bottom:8px;overflow:hidden;
+}
+.batch-result-header{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 18px;cursor:pointer;transition:background .15s;
+}
+.batch-result-header:hover{background:var(--bg-hover)}
+.batch-result-expand{min-width:18px;font-size:10px;color:var(--text-dim);transition:transform .2s}
+.batch-result-expand.open{transform:rotate(90deg)}
+.batch-result-sn{font-family:monospace;font-weight:700;color:var(--accent);min-width:140px}
+.batch-result-fn{color:var(--text-dim);font-size:12px;min-width:180px}
+.batch-result-rows{font-size:11px;color:var(--text-dim);min-width:60px}
+.batch-result-detail{
+  padding:0 18px 18px;display:none;border-top:1px solid var(--border);
+  max-height:600px;overflow-y:auto;
+}
+.batch-result-detail.show{display:block}
+/* Stats */
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
 .stat-card{
   background:var(--bg-card);border:1px solid var(--border);
@@ -98,7 +166,6 @@ input[type=file]{display:none}
 .report-content code{background:var(--bg-hover);padding:2px 6px;border-radius:4px;font-size:12px}
 .report-content blockquote{border-left:3px solid var(--accent);padding:8px 16px;margin:12px 0;background:#4da6ff0d;border-radius:0 6px 6px 0}
 .report-content hr{margin:20px 0;border-color:var(--border)}
-.report-content ul, .report-content ol{padding-left:20px}
 .loading{text-align:center;padding:40px;color:var(--text-dim)}
 .error{background:#ef53501a;border:1px solid #ef53504d;border-radius:10px;padding:14px 18px;color:#ffb8b8;font-size:13px}
 .empty{text-align:center;padding:40px;color:var(--text-dim);font-size:13px}
@@ -124,25 +191,33 @@ input[type=file]{display:none}
       <p>上传逆变器运行数据，自动扫描强故障特征，关联事件与操作记录，生成故障分析报告</p>
     </section>
 
-    <!-- Upload Section -->
+    <!-- Mode Switch (session视图隐藏) -->
+    <div class="mode-switch" v-if="!isSessionView">
+      <button class="mode-btn" :class="{active: mode==='single'}" @click="switchMode('single')">📄 单文件模式</button>
+      <button class="mode-btn" :class="{active: mode==='batch'}" @click="switchMode('batch')">📂 批量模式</button>
+    </div>
+
+    <!-- Session view loading / error -->
+    <div v-if="isSessionView && !result && !error" class="loading">⏳ 加载诊断结果...</div>
+    <div v-if="isSessionView && error" class="error" style="margin-bottom:16px">{{ error }}</div>
+
+    <!-- ═══════════════ SINGLE FILE MODE ═══════════════ -->
+    <template v-if="mode==='single' && !isSessionView">
     <div class="card">
       <div class="card-title">📂 数据上传</div>
       <div class="upload-area">
-        <!-- Historical (required) -->
         <label class="upload-box" :class="{'has-file': files.historical}">
           <span class="upload-title">📊 历史运行数据（必填）</span>
           <span class="upload-desc">支持 .xls / .xlsx，逆变器监控导出的逐日历史数据</span>
           <span class="upload-file-name" v-if="files.historical">{{ files.historical.name }}</span>
           <input type="file" accept=".xls,.xlsx" @change="onFileChange('historical', $event)">
         </label>
-        <!-- Event (optional) -->
         <label class="upload-box" :class="{'has-file': files.event}">
           <span class="upload-title">📋 事件记录（可选）</span>
           <span class="upload-desc">EVENT 导出文件，包含 Fault/Notice 事件时间线</span>
           <span class="upload-file-name" v-if="files.event">{{ files.event.name }}</span>
           <input type="file" accept=".xls,.xlsx" @change="onFileChange('event', $event)">
         </label>
-        <!-- Settings (optional) -->
         <label class="upload-box" :class="{'has-file': files.settings}">
           <span class="upload-title">⚙️ 操作设置记录（可选）</span>
           <span class="upload-desc">SET_RECORD 导出文件，包含参数修改历史</span>
@@ -158,9 +233,107 @@ input[type=file]{display:none}
       </div>
       <div v-if="error" class="error" style="margin-top:12px">{{ error }}</div>
     </div>
+    </template>
 
-    <!-- Fault Code 转换器 -->
+    <!-- ═══════════════ BATCH MODE ═══════════════ -->
+    <template v-if="mode==='batch'">
     <div class="card">
+      <div class="card-title">📂 批量分析 — 指定文件夹自动分析所有 Excel</div>
+
+      <!-- 方式一：服务器本地路径 -->
+      <div class="batch-input-row">
+        <input class="batch-input" v-model="batchFolderPath" placeholder="输入服务器上文件夹路径，如 /home/user/data/2024-06/"
+          @keyup.enter="runBatchLocal">
+        <button class="btn" @click="runBatchLocal" :disabled="batchLoading || !batchFolderPath">
+          {{ batchLoading ? '⏳ 分析中...' : '🔍 批量诊断' }}
+        </button>
+      </div>
+
+      <div class="batch-divider">或</div>
+
+      <!-- 方式二：浏览器选择文件夹 -->
+      <div class="batch-input-row">
+        <label for="batch-folder-input" class="btn btn-outline" style="cursor:pointer">
+          📁 选择文件夹
+        </label>
+        <input id="batch-folder-input" type="file" webkitdirectory directory multiple accept=".xls,.xlsx" @change="onBatchFolderPick" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden">
+        <span style="font-size:12px;color:var(--text-dim)" v-if="batchFiles.length">
+          已选 {{ batchFiles.length }} 个文件
+        </span>
+        <button class="btn" @click="runBatchUpload" :disabled="batchLoading || !batchFiles.length">
+          {{ batchLoading ? '⏳ 上传分析中...' : '🔍 开始批量分析' }}
+        </button>
+      </div>
+
+      <!-- 文件预览列表（上传模式） -->
+      <div v-if="batchFiles.length && !batchResults.length" style="margin-top:12px">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">待分析文件：</div>
+        <div v-for="(f, i) in batchFiles.slice(0,20)" :key="i" class="batch-file-row">
+          <span class="batch-file-name">{{ f.name }}</span>
+          <span class="batch-file-status" style="color:var(--text-dim)">{{ formatSize(f.size) }}</span>
+        </div>
+        <div v-if="batchFiles.length > 20" style="font-size:11px;color:var(--text-dim);margin-top:4px">
+          ... 还有 {{ batchFiles.length - 20 }} 个文件
+        </div>
+      </div>
+
+      <!-- 进度条 -->
+      <div class="batch-progress" v-if="batchLoading">
+        <div style="display:flex;justify-content:space-between;font-size:12px">
+          <span>分析中：{{ batchDone }}/{{ batchTotal }}</span>
+          <span>{{ batchError > 0 ? batchError + ' 失败' : '' }}</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" :style="{width: batchTotal ? (batchDone+batchError)/batchTotal*100+'%' : '0%'}"></div>
+        </div>
+      </div>
+
+      <div v-if="batchErrorMsg" class="error" style="margin-top:12px">{{ batchErrorMsg }}</div>
+    </div>
+
+    <!-- 批量结果汇总 -->
+    <div class="card" v-if="batchResults.length">
+      <div class="card-title">
+        📊 批量分析结果
+        <span style="font-weight:400;font-size:13px;color:var(--text-dim);margin-left:8px">
+          {{ batchResults.length }} 个文件 · 共 
+          <span style="color:var(--red)">{{ batchTotalViolations }} 异常点</span>
+          <span v-if="batchErrors.length" style="color:var(--red)"> · {{ batchErrors.length }} 失败</span>
+        </span>
+      </div>
+
+      <!-- 失败列表 -->
+      <div v-if="batchErrors.length" style="margin-bottom:12px">
+        <div v-for="(e, i) in batchErrors" :key="'err'+i" class="error" style="margin-bottom:4px;padding:8px 12px;font-size:12px">
+          ❌ {{ e.filename }}: {{ e.error }}
+        </div>
+      </div>
+
+      <!-- 文件结果列表 -->
+      <div v-for="(item, idx) in batchResults" :key="idx" class="batch-result-item">
+        <div class="batch-result-header" @click="toggleBatchItem(idx)">
+          <span class="batch-result-expand" :class="{open: batchExpanded[idx] !== undefined}">▶</span>
+          <span class="batch-result-sn">{{ item.serial_number || '?' }}</span>
+          <span class="batch-result-rows">{{ item.total_rows }} 行</span>
+          <span :class="item.violations_critical > 0 ? 'tag tag-red' : item.violations_warning > 0 ? 'tag tag-orange' : 'tag tag-green'">
+            {{ item.violations_total }} 异常
+            <span v-if="item.violations_critical > 0" style="font-size:10px">({{ item.violations_critical }}严重)</span>
+          </span>
+          <span v-for="rule in (item.violated_rules || []).slice(0,3)" class="chip"
+            style="font-size:10px;padding:2px 6px;background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.08)">⚡{{ rule }}</span>
+          <span class="tag tag-green" v-if="item.transitions_count > 0">{{ item.transitions_count }} 突变</span>
+          <span v-if="item.data_snapshot" style="font-size:11px;color:var(--muted);margin-left:8px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="item.data_snapshot">📊 {{ item.data_snapshot }}</span>
+          <button class="btn btn-sm btn-outline" style="margin-left:auto" @click.stop="openBatchInNewWindow(idx)" title="在新窗口打开">🔗</button>
+        </div>
+        <div class="batch-result-detail" :class="{show: batchExpanded[idx] !== undefined}">
+          <BatchDetail :item="item" :index="idx" />
+        </div>
+      </div>
+    </div>
+    </template>
+
+    <!-- Fault Code 转换器（session视图隐藏） -->
+    <div class="card" v-if="!isSessionView">
       <div class="card-title">🔢 Fault Code 转换器</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <input 
@@ -202,9 +375,8 @@ input[type=file]{display:none}
       </div>
     </div>
 
-    <!-- Results -->
-    <template v-if="result">
-      <!-- Stats -->
+    <!-- ═══════════════ SINGLE RESULTS ═══════════════ -->
+    <template v-if="mode==='single' && result">
       <div class="stats-row">
         <div class="stat-card">
           <div class="stat-number">{{ result.summary.total_rows }}</div>
@@ -232,9 +404,9 @@ input[type=file]{display:none}
         </div>
       </div>
 
-      <!-- Tabs -->
       <div class="tabs">
         <div class="tab" :class="{active: activeTab==='violations'}" @click="activeTab='violations'">⚡ 异常时间点</div>
+        <div class="tab" :class="{active: activeTab==='critical'}" @click="activeTab='critical'">🔴 严重异常点 <span v-if="criticalViolations.length" style="font-size:10px;color:var(--red)">({{ criticalViolations.length }})</span></div>
         <div class="tab" :class="{active: activeTab==='timeline'}" @click="activeTab='timeline'">📅 事件时间线</div>
         <div class="tab" :class="{active: activeTab==='field_changes'}" @click="activeTab='field_changes'">🔧 字段变化</div>
         <div class="tab" :class="{active: activeTab==='transitions'}" @click="activeTab='transitions'" v-if="correlated.length">🔄 故障关联</div>
@@ -242,11 +414,9 @@ input[type=file]{display:none}
         <div class="tab" :class="{active: activeTab==='report'}" @click="activeTab='report'">📄 诊断报告</div>
       </div>
 
-      <!-- Violations Tab -->
       <div class="card" v-if="activeTab==='violations'">
         <div class="card-title">⚡ 物理判据异常时间点（{{ result.violations.length }} 个）</div>
         <div v-if="!result.violations.length" class="empty">✅ 未发现物理判据违反，硬件状态正常。</div>
-        <!-- Pre-anomaly rows -->
         <template v-if="result.violations.length && result.violations[0].pre_rows">
           <div style="font-size:14px;color:var(--accent);margin-bottom:8px;margin-top:12px">📊 最早异常前运行数据：</div>
           <div v-for="(pr, j) in result.violations[0].pre_rows" class="result-item" style="border-left:2px solid var(--border);padding-left:12px;opacity:0.8">
@@ -311,7 +481,63 @@ input[type=file]{display:none}
         </div>
       </div>
 
-      <!-- Transitions / Correlated Tab -->
+      <!-- Critical Violations Tab -->
+      <div class="card" v-if="activeTab==='critical'">
+        <div class="card-title">🔴 严重异常点（{{ criticalViolations.length }} 个 — 物理判据 ≥2 条同时违反）</div>
+        <div v-if="!criticalViolations.length" class="empty">✅ 无严重异常，所有违规均为单条警告级别。</div>
+        <div v-for="(v, i) in criticalViolations" :key="'crit'+i" class="result-item" style="border-left:3px solid var(--red);padding-left:14px">
+          <div class="result-time">
+            <span class="tag tag-red">🔴 严重</span>
+            {{ v.time }}
+            <span style="margin-left:8px;font-size:11px">Fault: {{ v.fault_code }} | Warn: {{ v.warning_code }} | {{ v.status }}</span>
+          </div>
+          <div v-for="r in v.violations" class="result-detail">
+            • {{ r.detail }}
+            <span v-if="r.inference" style="color:var(--orange);margin-left:8px">⚠️ {{ r.inference }}</span>
+          </div>
+          <div v-if="v.internal_fault" class="result-detail" style="color:var(--accent);font-family:monospace">
+            🔍 Internal Fault: {{ v.internal_fault.hex }} → {{ v.internal_fault.binary }} → {{ v.internal_fault.fault_summary }}
+          </div>
+          <div class="result-meta">
+            SOC: {{ v.metrics.SOC }}% |
+            BatCurrent: {{ v.metrics.BatCurrent }}A |
+            pCharge: {{ v.metrics.pCharge }}W |
+            pinv: {{ v.metrics.pinv }}W |
+            prec: {{ v.metrics.prec }}W |
+            vBat: {{ v.metrics.vBat }}V |
+            Vbat_Inv: {{ v.metrics.Vbat_Inv }}V |
+            vBusP: {{ v.metrics.vBusP }}V |
+            vBus1: {{ v.metrics.vBus1 }}V |
+            vBus2: {{ v.metrics.vBUS2 }}V
+          </div>
+          <!-- 上一笔 / 下一笔 展开 -->
+          <div style="margin-top:6px;display:flex;gap:8px">
+            <button v-if="v.prev_row" class="btn btn-sm btn-outline" @click="toggleRowExpand(i, 'prev')">
+              {{ expandedRows[i]?.prev ? '▲' : '▲' }} 上一笔数据
+            </button>
+            <button v-if="v.next_row" class="btn btn-sm btn-outline" @click="toggleRowExpand(i, 'next')">
+              {{ expandedRows[i]?.next ? '▼' : '▼' }} 下一笔数据
+            </button>
+          </div>
+          <!-- 上一笔展开 -->
+          <div v-if="expandedRows[i]?.prev && v.prev_row" style="margin-top:6px;padding:8px 12px;background:#11141d;border-radius:8px;border:1px solid var(--border);font-size:11px;color:var(--text-dim)">
+            <div style="color:var(--orange);font-weight:700;margin-bottom:4px">◀ 上一笔 {{ v.prev_row.time }}</div>
+            <div>Status: {{ v.prev_row.status }} | Fault: {{ v.prev_row.fault_code }} | Warn: {{ v.prev_row.warning_code }}</div>
+            <div>vBat: {{ v.prev_row.vBat }}V | Vbat_Inv: {{ v.prev_row.Vbat_Inv }}V | vBus2: {{ v.prev_row.vBUS2 }}V | vBus1: {{ v.prev_row.vBus1 }}V | vBusP: {{ v.prev_row.vBusP }}V</div>
+            <div>SOC: {{ v.prev_row.SOC }}% | BatCurrent: {{ v.prev_row.BatCurrent }}A | pinv: {{ v.prev_row.pinv }}W | prec: {{ v.prev_row.prec }}W</div>
+            <div>pCharge: {{ v.prev_row.pCharge }}W | pDisCharge: {{ v.prev_row.pDisCharge }}W | pToGrid: {{ v.prev_row.pToGrid }}W</div>
+          </div>
+          <!-- 下一笔展开 -->
+          <div v-if="expandedRows[i]?.next && v.next_row" style="margin-top:6px;padding:8px 12px;background:#11141d;border-radius:8px;border:1px solid var(--border);font-size:11px;color:var(--text-dim)">
+            <div style="color:var(--red);font-weight:700;margin-bottom:4px">▶ 下一笔 {{ v.next_row.time }}</div>
+            <div>Status: {{ v.next_row.status }} | Fault: {{ v.next_row.fault_code }} | Warn: {{ v.next_row.warning_code }}</div>
+            <div>vBat: {{ v.next_row.vBat }}V | Vbat_Inv: {{ v.next_row.Vbat_Inv }}V | vBus2: {{ v.next_row.vBUS2 }}V | vBus1: {{ v.next_row.vBus1 }}V | vBusP: {{ v.next_row.vBusP }}V</div>
+            <div>SOC: {{ v.next_row.SOC }}% | BatCurrent: {{ v.next_row.BatCurrent }}A | pinv: {{ v.next_row.pinv }}W | prec: {{ v.next_row.prec }}W</div>
+            <div>pCharge: {{ v.next_row.pCharge }}W | pDisCharge: {{ v.next_row.pDisCharge }}W | pToGrid: {{ v.next_row.pToGrid }}W</div>
+          </div>
+        </div>
+      </div>
+
       <div class="card" v-if="activeTab==='transitions'">
         <div class="card-title">🔄 故障突变关联分析</div>
         <div v-if="!correlated.length" class="empty">未检测到 fault code 突变。</div>
@@ -320,8 +546,6 @@ input[type=file]{display:none}
             ⚡ 突变：{{ corr.from_code }} → {{ corr.to_code }}
           </div>
           <div class="result-meta" style="margin-bottom:10px;">时间：{{ corr.transition_time }}</div>
-          
-          <!-- Related Events -->
           <div v-if="corr.related_events && corr.related_events.length">
             <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">关联事件：</div>
             <div v-for="evt in corr.related_events.slice(0,5)" class="event-row" :class="evt.type === 'Fault' ? 'fault' : 'notice'">
@@ -330,8 +554,6 @@ input[type=file]{display:none}
               <span style="font-size:11px;color:var(--text-dim);margin-left:auto">{{ evt.start_time?.slice(0,19) }}</span>
             </div>
           </div>
-
-          <!-- Related Settings -->
           <div v-if="corr.related_settings && corr.related_settings.length">
             <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;margin-top:10px">关联操作设置：</div>
             <div v-for="s in corr.related_settings.slice(0,5)" class="event-row">
@@ -340,8 +562,6 @@ input[type=file]{display:none}
               <span style="font-size:11px;color:var(--text-dim);margin-left:auto">{{ s.username }}</span>
             </div>
           </div>
-
-          <!-- Data Window -->
           <div v-if="corr.window_before && corr.window_after" style="margin-top:10px">
             <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">突变前后数据：</div>
             <div style="overflow-x:auto">
@@ -386,7 +606,6 @@ input[type=file]{display:none}
         </div>
       </div>
 
-      <!-- Timeline Tab -->
       <div class="card" v-if="activeTab==='timeline'">
         <div class="card-title">📅 事件时间线（{{ result.event_timeline?.length || 0 }} 个事件）</div>
         <div v-if="!result.event_timeline?.length" class="empty">无事件记录</div>
@@ -397,11 +616,8 @@ input[type=file]{display:none}
         </div>
       </div>
 
-      <!-- Field Changes Tab -->
       <div class="card" v-if="activeTab==='field_changes'">
         <div class="card-title">🔧 诊断字段变化</div>
-        
-        <!-- batStatusInv -->
         <div style="margin-bottom:20px">
           <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:10px">🔋 逆变器电池状态 (batStatusInv)</div>
           <div v-if="!(result.field_changes?.batStatusInv?.length)" class="empty">无变化</div>
@@ -421,8 +637,6 @@ input[type=file]{display:none}
             <div style="font-size:12px;color:var(--text-dim);margin-top:2px">解析: {{ chg.curr_summary }}</div>
           </div>
         </div>
-
-        <!-- internalFault -->
         <div>
           <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:10px">⚠️ 内部异常 (internalFault)</div>
           <div v-if="!(result.field_changes?.internalFault?.length)" class="empty">无变化</div>
@@ -444,7 +658,6 @@ input[type=file]{display:none}
         </div>
       </div>
 
-      <!-- Events Tab -->
       <div class="card" v-if="activeTab==='events' && result.summary.events">
         <div class="card-title">📋 全部事件记录</div>
         <div v-for="(evt, i) in eventList" :key="i" class="event-row" :class="evt.type === 'Fault' ? 'fault' : 'notice'">
@@ -454,7 +667,6 @@ input[type=file]{display:none}
         </div>
       </div>
 
-      <!-- Report Tab -->
       <div class="card" v-if="activeTab==='report'">
         <div class="card-title">📄 故障分析报告</div>
         <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -470,8 +682,220 @@ input[type=file]{display:none}
 <script>
 const { createApp, ref, computed, reactive } = Vue;
 
+// ═══════════════ BatchDetail 子组件 ═══════════════
+const BatchDetail = {
+  props: ['item', 'index'],
+  setup(props) {
+    const activeTab = ref('violations');
+    const violationsPage = ref(1);
+    const fullResult = ref(null);
+    const loadError = ref('');
+
+    // 展开时从 API 加载完整结果
+    async function loadResult() {
+      if (fullResult.value) return;
+      if (!props.item?.session_id) { loadError.value = '无 session_id'; return; }
+      try {
+        const resp = await fetch(`/api/result/${props.item.session_id}`);
+        const data = await resp.json();
+        if (data.success) fullResult.value = data;
+        else loadError.value = data.error || '加载失败';
+      } catch (e) {
+        loadError.value = '网络错误: ' + (e.message || '');
+      }
+    }
+    loadResult();
+
+    const full = computed(() => {
+      const r = fullResult.value || {};
+      return {
+        violations: r.violations || [],
+        transitions: r.transitions || [],
+        correlated: r.correlated || [],
+        timeline: r.event_timeline || [],
+        field_changes: r.field_changes || { batStatusInv: [], internalFault: [] },
+        report: r.report || '',
+        summary: r.summary || {},
+        events: r.summary?.events,
+      };
+    });
+
+    const paginatedViolations = computed(() => {
+      if (!full.value.violations) return [];
+      return full.value.violations.slice(0, violationsPage.value * 20);
+    });
+
+    function showMoreViolations() {
+      const max = Math.ceil((full.value.violations?.length || 0) / 20);
+      violationsPage.value = violationsPage.value >= max ? 1 : violationsPage.value + 1;
+    }
+
+    const criticalViolations = computed(() => {
+      if (!full.value.violations) return [];
+      return full.value.violations.filter(v => v.severity === 'critical');
+    });
+
+    const expandedRows = reactive({});
+
+    function toggleRowExpand(idx, dir) {
+      if (!expandedRows[idx]) expandedRows[idx] = {};
+      expandedRows[idx][dir] = !expandedRows[idx][dir];
+    }
+
+    function renderMarkdown(md) {
+      if (!md) return '';
+      const blocks = md.split('\n\n');
+      let html = '';
+      let inTable = false;
+      for (const block of blocks) {
+        const lines = block.split('\n');
+        const firstLine = lines[0];
+        if (/^#### /.test(firstLine)) { html += `<h4>${firstLine.slice(5)}</h4>`; continue; }
+        if (/^### /.test(firstLine)) { html += `<h3>${firstLine.slice(4)}</h3>`; continue; }
+        if (/^## /.test(firstLine)) { html += `<h2>${firstLine.slice(3)}</h2>`; continue; }
+        if (/^# /.test(firstLine)) { html += `<h1>${firstLine.slice(2)}</h1>`; continue; }
+        if (firstLine === '---') { html += '<hr>'; continue; }
+        if (firstLine.startsWith('> ')) { html += `<blockquote>${firstLine.slice(2)}</blockquote>`; continue; }
+        const trimmed = firstLine.trim();
+        if (trimmed.startsWith('|')) {
+          if (!inTable) { html += '<table>'; inTable = true; }
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith('|')) continue;
+            const isSep = /^[\|\s\-:]+$/.test(t.replace(/\|/g, '').trim());
+            if (isSep) continue;
+            html += '<tr>';
+            let cellStr = t.replace(/^\|/, '').replace(/\|$/, '');
+            const cells = cellStr.split('|').map(c => c.trim());
+            for (const cell of cells) html += `<td>${cell}</td>`;
+            html += '</tr>';
+          }
+          continue;
+        } else if (inTable) { html += '</table>'; inTable = false; }
+        let content = block
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\n/g, '<br>');
+        html += `<p>${content}</p>`;
+      }
+      if (inTable) html += '</table>';
+      return html;
+    }
+
+    return { activeTab, violationsPage, full, paginatedViolations, showMoreViolations, renderMarkdown, fullResult, loadError, criticalViolations, expandedRows, toggleRowExpand };
+  },
+  template: `
+    <div>
+      <div v-if="!fullResult && !loadError" class="loading" style="padding:20px">⏳ 加载诊断数据...</div>
+      <div v-if="loadError" class="error">{{ loadError }}</div>
+      <template v-if="fullResult">
+      <div class="tabs" style="margin-top:14px">
+        <div class="tab" :class="{active: activeTab==='violations'}" @click="activeTab='violations'">⚡ 异常时间点</div>
+        <div class="tab" :class="{active: activeTab==='critical'}" @click="activeTab='critical'">🔴 严重异常点 <span v-if="criticalViolations.length" style="font-size:10px;color:var(--red)">({{ criticalViolations.length }})</span></div>
+        <div class="tab" :class="{active: activeTab==='timeline'}" @click="activeTab='timeline'">📅 事件时间线</div>
+        <div class="tab" :class="{active: activeTab==='field_changes'}" @click="activeTab='field_changes'">🔧 字段变化</div>
+        <div class="tab" :class="{active: activeTab==='report'}" @click="activeTab='report'">📄 诊断报告</div>
+      </div>
+
+      <div v-if="activeTab==='violations'">
+        <div v-if="!full.violations.length" class="empty">✅ 未发现物理判据违反</div>
+        <div v-for="(v, i) in paginatedViolations" :key="i" class="result-item">
+          <div class="result-time">
+            <span :class="v.severity==='critical' ? 'tag tag-red' : 'tag tag-orange'">{{ v.severity==='critical' ? '🔴' : '🟡' }}</span>
+            {{ v.time }}
+          </div>
+          <div v-for="r in v.violations" class="result-detail">• {{ r.detail }}<span v-if="r.inference" style="color:var(--orange);margin-left:8px">⚠️ {{ r.inference }}</span></div>
+          <div v-if="v.internal_fault" class="result-detail" style="color:var(--accent);font-family:monospace">
+            🔍 Internal Fault: {{ v.internal_fault.hex }} → {{ v.internal_fault.binary }} → {{ v.internal_fault.fault_summary }}
+          </div>
+        </div>
+        <div v-if="full.violations.length > 20" style="margin-top:8px;text-align:center">
+          <button class="btn btn-sm btn-outline" @click="showMoreViolations">
+            {{ violationsPage * 20 >= full.violations.length ? '收起' : '加载更多...' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Critical Violations (BatchDetail) -->
+      <div v-if="activeTab==='critical'">
+        <div v-if="!criticalViolations.length" class="empty">✅ 无严重异常</div>
+        <div v-for="(v, i) in criticalViolations" :key="'crit'+i" class="result-item" style="border-left:3px solid var(--red);padding-left:12px">
+          <div class="result-time">
+            <span class="tag tag-red">🔴</span> {{ v.time }}
+            <span style="margin-left:6px;font-size:11px">Fault: {{ v.fault_code }} | {{ v.status }}</span>
+          </div>
+          <div v-for="r in v.violations" class="result-detail">• {{ r.detail }}<span v-if="r.inference" style="color:var(--orange);margin-left:6px">⚠️ {{ r.inference }}</span></div>
+          <div v-if="v.internal_fault" class="result-detail" style="color:var(--accent);font-family:monospace">
+            🔍 Internal Fault: {{ v.internal_fault.hex }} → {{ v.internal_fault.binary }} → {{ v.internal_fault.fault_summary }}
+          </div>
+          <div class="result-meta">
+            vBat: {{ v.metrics.vBat }}V | Vbat_Inv: {{ v.metrics.Vbat_Inv }}V | vBus2: {{ v.metrics.vBUS2 }}V | vBus1: {{ v.metrics.vBus1 }}V | vBusP: {{ v.metrics.vBusP }}V | SOC: {{ v.metrics.SOC }}%
+          </div>
+          <div style="margin-top:6px;display:flex;gap:8px">
+            <button v-if="v.prev_row" class="btn btn-sm btn-outline" @click="toggleRowExpand(i, 'prev')">
+              {{ expandedRows[i]?.prev ? '▲ 收起上一笔' : '▲ 上一笔数据' }}
+            </button>
+            <button v-if="v.next_row" class="btn btn-sm btn-outline" @click="toggleRowExpand(i, 'next')">
+              {{ expandedRows[i]?.next ? '▼ 收起下一笔' : '▼ 下一笔数据' }}
+            </button>
+          </div>
+          <div v-if="expandedRows[i]?.prev && v.prev_row" style="margin-top:6px;padding:8px 12px;background:#11141d;border-radius:8px;border:1px solid var(--border);font-size:11px;color:var(--text-dim)">
+            <div style="color:var(--orange);font-weight:700;margin-bottom:4px">◀ 上一笔 {{ v.prev_row.time }}</div>
+            <div>vBat: {{ v.prev_row.vBat }}V | Vbat_Inv: {{ v.prev_row.Vbat_Inv }}V | vBus2: {{ v.prev_row.vBUS2 }}V | vBus1: {{ v.prev_row.vBus1 }}V | vBusP: {{ v.prev_row.vBusP }}V | SOC: {{ v.prev_row.SOC }}% | BatCurrent: {{ v.prev_row.BatCurrent }}A</div>
+          </div>
+          <div v-if="expandedRows[i]?.next && v.next_row" style="margin-top:6px;padding:8px 12px;background:#11141d;border-radius:8px;border:1px solid var(--border);font-size:11px;color:var(--text-dim)">
+            <div style="color:var(--red);font-weight:700;margin-bottom:4px">▶ 下一笔 {{ v.next_row.time }}</div>
+            <div>vBat: {{ v.next_row.vBat }}V | Vbat_Inv: {{ v.next_row.Vbat_Inv }}V | vBus2: {{ v.next_row.vBUS2 }}V | vBus1: {{ v.next_row.vBus1 }}V | vBusP: {{ v.next_row.vBusP }}V | SOC: {{ v.next_row.SOC }}% | BatCurrent: {{ v.next_row.BatCurrent }}A</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="activeTab==='timeline'">
+        <div v-if="!full.timeline.length" class="empty">无事件记录</div>
+        <div v-for="(evt, i) in full.timeline" :key="i" class="event-row" :class="evt.type.includes('fault') ? 'fault' : evt.type.includes('warning') ? 'notice' : ''">
+          <span style="min-width:140px;font-family:monospace;font-size:11px;color:var(--accent)">{{ evt.time }}</span>
+          <span :class="evt.type==='status_change' ? 'tag' : evt.type.includes('fault') ? 'tag tag-red' : 'tag tag-orange'">{{ evt.type }}</span>
+          <span style="font-size:12px">{{ evt.detail }}</span>
+        </div>
+      </div>
+
+      <div v-if="activeTab==='field_changes'">
+        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:8px">🔋 batStatusInv</div>
+        <div v-if="!(full.field_changes?.batStatusInv?.length)" class="empty">无变化</div>
+        <div v-for="(chg, i) in (full.field_changes?.batStatusInv || [])" :key="'b'+i" style="padding:6px 10px;margin-bottom:4px;background:#ffffff06;border-radius:6px;font-size:11px">
+          <span style="font-family:monospace;color:var(--accent)">{{ chg.time }}</span>
+          <span style="margin-left:8px">{{ chg.prev_hex }} → {{ chg.curr_hex }}</span>
+          <span style="margin-left:4px;color:#ffffff80">{{ chg.curr_summary }}</span>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:#fff;margin:12px 0 8px">⚠️ internalFault</div>
+        <div v-if="!(full.field_changes?.internalFault?.length)" class="empty">无变化</div>
+        <div v-for="(chg, i) in (full.field_changes?.internalFault || [])" :key="'if'+i" style="padding:6px 10px;margin-bottom:4px;background:#ffffff06;border-radius:6px;font-size:11px">
+          <span style="font-family:monospace;color:var(--orange)">{{ chg.time }}</span>
+          <span style="margin-left:8px">{{ chg.prev_hex }} → {{ chg.curr_hex }}</span>
+          <span style="margin-left:4px;color:#ffffff80">{{ chg.curr_summary }}</span>
+        </div>
+      </div>
+
+      <div v-if="activeTab==='report'">
+        <div class="report-content" v-html="renderMarkdown(full.report)"></div>
+      </div>
+      </template>
+    </div>
+  `
+};
+
+// ═══════════════ 主 App ═══════════════
 createApp({
+  components: { BatchDetail },
   setup() {
+    // Mode
+    const mode = ref('single');
+
+    // Session view (新窗口模式)
+    const isSessionView = !!(new URLSearchParams(window.location.search).get('session'));
+
+    // Single mode state
     const files = reactive({ historical: null, event: null, settings: null });
     const loading = ref(false);
     const error = ref('');
@@ -483,11 +907,43 @@ createApp({
     const faultCodeInput = ref('');
     const faultCodeResult = ref(null);
 
+    // Batch mode state
+    const batchFolderPath = ref('');
+    const batchFiles = ref([]);        // File objects from folder picker
+    const batchLoading = ref(false);
+    const batchDone = ref(0);
+    const batchError = ref(0);
+    const batchTotal = ref(0);
+    const batchErrorMsg = ref('');
+    const batchResults = ref([]);      // Successful results
+    const batchErrors = ref([]);       // Failed items
+    const batchExpanded = reactive({});  // {idx: true} instead of Set
+
     const FAULT_BITS = {
       0: 'GFCI故障', 1: '硬件过流', 2: '逆变过流', 3: 'Boost过流',
       4: 'BDC过流', 5: 'BUS短路', 6: 'Bypass继电器故障',
     };
 
+    const batchTotalViolations = computed(() => {
+      return batchResults.value.reduce((sum, r) => sum + (r.violations_total || 0), 0);
+    });
+
+    function switchMode(m) {
+      mode.value = m;
+      if (m === 'batch') {
+        result.value = null;
+        error.value = '';
+      }
+    }
+
+    function formatSize(bytes) {
+      if (!bytes) return '';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+      return (bytes/(1024*1024)).toFixed(1) + ' MB';
+    }
+
+    // ═══════════ Single mode ═══════════
     function parseFaultCode() {
       const raw = faultCodeInput.value.trim();
       if (!raw) { faultCodeResult.value = { error: '请输入 fault code' }; return; }
@@ -508,10 +964,7 @@ createApp({
             if (val) faults.push(name);
           }
         }
-        faultCodeResult.value = {
-          hex, binary, bits,
-          fault_summary: faults.length ? faults.join('、') : '无异常',
-        };
+        faultCodeResult.value = { hex, binary, bits, fault_summary: faults.length ? faults.join('、') : '无异常' };
       } catch (e) {
         faultCodeResult.value = { error: '格式错误，请输入有效HEX，如 3F3C 或 0x3F3C' };
       }
@@ -524,53 +977,27 @@ createApp({
 
     async function runDiagnosis() {
       if (!files.historical) return;
-      loading.value = true;
-      error.value = '';
-      result.value = null;
-
+      loading.value = true; error.value = ''; result.value = null;
       try {
         const form = new FormData();
         form.append('historical', files.historical);
         if (files.event) form.append('event', files.event);
         if (files.settings) form.append('settings', files.settings);
-
-        // 添加超时（120秒，大文件处理需要时间）
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 120000);
-
-        const resp = await fetch('/api/diagnose', { 
-          method: 'POST', 
-          body: form,
-          signal: controller.signal,
-        });
+        const resp = await fetch('/api/diagnose', { method: 'POST', body: form, signal: controller.signal });
         clearTimeout(timeoutId);
-
-        if (!resp.ok) {
-          const errText = await resp.text().catch(() => '未知错误');
-          error.value = `服务器错误 (${resp.status}): ${errText}`;
-          return;
-        }
-
+        if (!resp.ok) { error.value = `服务器错误 (${resp.status})`; return; }
         const data = await resp.json();
-
-        if (!data.success) {
-          error.value = data.error || '诊断失败';
-          return;
-        }
-
+        if (!data.success) { error.value = data.error || '诊断失败'; return; }
         result.value = data;
         correlated.value = data.correlated || [];
         eventList.value = data.summary?.events?._raw_events || [];
         activeTab.value = data.violations?.length ? 'violations' : 'report';
       } catch (e) {
-        if (e.name === 'AbortError') {
-          error.value = '诊断超时（>2分钟）。文件可能太大，请检查网络后重试。';
-        } else {
-          error.value = '请求失败: ' + (e.message || '网络错误，请检查连接后重试');
-        }
-      } finally {
-        loading.value = false;
-      }
+        if (e.name === 'AbortError') error.value = '诊断超时（>2分钟）';
+        else error.value = '请求失败: ' + (e.message || '网络错误');
+      } finally { loading.value = false; }
     }
 
     const paginatedViolations = computed(() => {
@@ -581,58 +1008,33 @@ createApp({
     function showMoreViolations() {
       if (!result.value) return;
       const max = Math.ceil(result.value.violations.length / 20);
-      if (violationsPage.value >= max) {
-        violationsPage.value = 1;
-      } else {
-        violationsPage.value++;
-      }
+      violationsPage.value = violationsPage.value >= max ? 1 : violationsPage.value + 1;
     }
 
     function clearAll() {
-      files.historical = null;
-      files.event = null;
-      files.settings = null;
-      result.value = null;
-      error.value = '';
-      correlated.value = [];
-      eventList.value = [];
-      violationsPage.value = 1;
-      // Reset file inputs
+      files.historical = null; files.event = null; files.settings = null;
+      result.value = null; error.value = '';
+      correlated.value = []; eventList.value = []; violationsPage.value = 1;
       document.querySelectorAll('input[type=file]').forEach(el => el.value = '');
     }
 
-    // Simple markdown renderer
     function renderMarkdown(md) {
       if (!md) return '';
-      // Split into blocks by double newline
       const blocks = md.split('\n\n');
       let html = '';
       let inTable = false;
-      
       for (const block of blocks) {
         const lines = block.split('\n');
         const firstLine = lines[0];
-        
-        // Headers
         if (/^#### /.test(firstLine)) { html += `<h4>${firstLine.slice(5)}</h4>`; continue; }
         if (/^### /.test(firstLine)) { html += `<h3>${firstLine.slice(4)}</h3>`; continue; }
         if (/^## /.test(firstLine)) { html += `<h2>${firstLine.slice(3)}</h2>`; continue; }
         if (/^# /.test(firstLine)) { html += `<h1>${firstLine.slice(2)}</h1>`; continue; }
-        
-        // Horizontal rule
         if (firstLine === '---') { html += '<hr>'; continue; }
-        
-        // Blockquote
-        if (firstLine.startsWith('> ')) {
-          html += `<blockquote>${firstLine.slice(2)}</blockquote>`;
-          continue;
-        }
-        
-        // Table
+        if (firstLine.startsWith('> ')) { html += `<blockquote>${firstLine.slice(2)}</blockquote>`; continue; }
         const trimmed = firstLine.trim();
         if (trimmed.startsWith('|')) {
           if (!inTable) { html += '<table>'; inTable = true; }
-          // Process ALL lines in this table block
           for (const line of lines) {
             const t = line.trim();
             if (!t.startsWith('|')) continue;
@@ -641,40 +1043,38 @@ createApp({
             html += '<tr>';
             let cellStr = t.replace(/^\|/, '').replace(/\|$/, '');
             const cells = cellStr.split('|').map(c => c.trim());
-            for (const cell of cells) {
-              html += `<td>${cell}</td>`;
-            }
+            for (const cell of cells) html += `<td>${cell}</td>`;
             html += '</tr>';
           }
           continue;
-        } else if (inTable) {
-          html += '</table>';
-          inTable = false;
-        }
-        
-        // Inline formatting within the block
+        } else if (inTable) { html += '</table>'; inTable = false; }
         let content = block
           .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.+?)\*/g, '<em>$1</em>')
           .replace(/`([^`]+)`/g, '<code>$1</code>')
           .replace(/\n/g, '<br>');
-        
         html += `<p>${content}</p>`;
       }
-      
       if (inTable) html += '</table>';
       return html;
     }
 
-    const reportHtml = computed(() => {
-      if (!result.value?.report) return '';
-      return renderMarkdown(result.value.report);
+    const reportHtml = computed(() => result.value?.report ? renderMarkdown(result.value.report) : '');
+
+    const criticalViolations = computed(() => {
+      if (!result.value?.violations) return [];
+      return result.value.violations.filter(v => v.severity === 'critical');
     });
 
+    const expandedRows = reactive({});  // {idx: {prev: bool, next: bool}}
+
+    function toggleRowExpand(idx, dir) {
+      if (!expandedRows[idx]) expandedRows[idx] = {};
+      expandedRows[idx][dir] = !expandedRows[idx][dir];
+    }
+
     function copyReport() {
-      if (result.value?.report) {
-        navigator.clipboard.writeText(result.value.report);
-      }
+      if (result.value?.report) navigator.clipboard.writeText(result.value.report);
     }
 
     function downloadReport() {
@@ -688,13 +1088,169 @@ createApp({
       URL.revokeObjectURL(a.href);
     }
 
+    // ═══════════ Batch mode ═══════════
+    function onBatchFolderPick(e) {
+      const fs = Array.from(e.target.files || []);
+      // Filter Excel files
+      batchFiles.value = fs.filter(f => {
+        const ext = f.name.split('.').pop()?.toLowerCase();
+        return ext === 'xls' || ext === 'xlsx';
+      });
+      if (fs.length > 0 && batchFiles.value.length === 0) {
+        batchErrorMsg.value = '所选文件夹中未找到 .xls / .xlsx 文件';
+      } else {
+        batchErrorMsg.value = '';
+      }
+    }
+
+    async function runBatchUpload() {
+      if (!batchFiles.value.length) return;
+      batchLoading.value = true;
+      batchDone.value = 0; batchError.value = 0;
+      batchTotal.value = batchFiles.value.length;
+      batchResults.value = [];
+      batchErrors.value = [];
+      for (const k in batchExpanded) delete batchExpanded[k];
+      batchErrorMsg.value = '';
+
+      for (const file of batchFiles.value) {
+        try {
+          const form = new FormData();
+          form.append('historical', file);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 180000);
+          const resp = await fetch('/api/diagnose', { method: 'POST', body: form, signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          if (!data.success) throw new Error(data.error || '诊断失败');
+
+          batchResults.value.push({
+            filename: file.name,
+            session_id: data.session_id,
+            serial_number: data.summary?.serial_number || '?',
+            total_rows: data.summary?.total_rows || 0,
+            violations_total: data.violations?.length || 0,
+            violations_critical: data.summary?.violations_critical || 0,
+            violations_warning: data.summary?.violations_warning || 0,
+            transitions_count: data.summary?.transitions_count || 0,
+            violated_rules: data.summary?.violated_rules || [],
+          });
+          batchDone.value++;
+        } catch (e) {
+          batchErrors.value.push({ filename: file.name, error: e.message || '未知错误' });
+          batchError.value++;
+        }
+      }
+      batchLoading.value = false;
+      // Auto-expand first item
+      if (batchResults.value.length) batchExpanded[0] = true;
+    }
+
+    async function runBatchLocal() {
+      if (!batchFolderPath.value.trim()) return;
+      batchLoading.value = true;
+      batchDone.value = 0; batchError.value = 0;
+      batchResults.value = [];
+      batchErrors.value = [];
+      for (const k in batchExpanded) delete batchExpanded[k];
+      batchErrorMsg.value = '';
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 600000);
+        const resp = await fetch('/api/batch-diagnose-local', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folder_path: batchFolderPath.value.trim() }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        const data = await resp.json();
+        if (!data.success) { batchErrorMsg.value = data.error || '批量分析失败'; batchLoading.value = false; return; }
+        batchTotal.value = data.total_files;
+        batchDone.value = data.succeeded;
+        batchError.value = data.failed;
+        batchResults.value = data.results || [];
+        batchErrors.value = data.errors || [];
+      } catch (e) {
+        // POST 可能因隧道超时失败，尝试 GET 缓存
+        if (e.name !== 'AbortError') {
+          try {
+            const cresp = await fetch('/api/batch-cached');
+            const cdata = await cresp.json();
+            if (cdata.success) {
+              batchTotal.value = cdata.total_files;
+              batchDone.value = cdata.succeeded;
+              batchError.value = cdata.failed;
+              batchResults.value = cdata.results || [];
+              batchErrors.value = cdata.errors || [];
+              batchLoading.value = false;
+              if (batchResults.value.length) batchExpanded[0] = true;
+              return;
+            }
+          } catch (_) {}
+        }
+        if (e.name === 'AbortError') batchErrorMsg.value = '批量分析超时（>10分钟）';
+        else batchErrorMsg.value = '请求失败: ' + (e.message || '网络错误') + ' （可尝试浏览器刷新后重试）';
+      }
+      batchLoading.value = false;
+      if (batchResults.value.length) batchExpanded[0] = true;
+    }
+
+    function toggleBatchItem(idx) {
+      if (batchExpanded[idx]) delete batchExpanded[idx];
+      else batchExpanded[idx] = true;
+    }
+
+    function openBatchInNewWindow(idx) {
+      const item = batchResults.value[idx];
+      if (!item || !item.session_id) return;
+      const url = new URL(window.location.href);
+      url.searchParams.set('session', item.session_id);
+      url.searchParams.delete('batch_view');
+      window.open(url.toString(), '_blank');
+    }
+
+    // ═══════ 检测 ?session= URL 参数（新窗口模式） ═══════
+    const sessionParam = new URLSearchParams(window.location.search).get('session');
+    if (sessionParam) {
+      (async () => {
+        try {
+          const resp = await fetch(`/api/result/${sessionParam}`);
+          const data = await resp.json();
+          if (data.success) {
+            result.value = data;
+            correlated.value = data.correlated || [];
+            eventList.value = data.summary?.events?._raw_events || [];
+            activeTab.value = data.violations?.length ? 'violations' : 'report';
+          } else {
+            error.value = data.error || '获取结果失败';
+          }
+        } catch (e) {
+          error.value = '加载失败: ' + (e.message || '网络错误');
+        }
+      })();
+    }
+
     return {
+      // Mode
+      mode, switchMode, formatSize,
+      // Single
       files, loading, error, result, activeTab, violationsPage,
       correlated, eventList, paginatedViolations,
+      criticalViolations, expandedRows, toggleRowExpand,
       faultCodeInput, faultCodeResult, parseFaultCode,
       reportHtml,
       onFileChange, runDiagnosis, showMoreViolations, clearAll,
       copyReport, downloadReport,
+      // Batch
+      batchFolderPath, batchFiles, batchLoading,
+      batchDone, batchError, batchTotal, batchErrorMsg,
+      batchResults, batchErrors, batchExpanded,
+      batchTotalViolations,
+      onBatchFolderPick, runBatchUpload, runBatchLocal,
+      toggleBatchItem, openBatchInNewWindow, isSessionView,
     };
   }
 }).mount('#app');
